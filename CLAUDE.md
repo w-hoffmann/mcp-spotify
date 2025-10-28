@@ -16,7 +16,7 @@ This document presents the findings of a comprehensive security review of Artist
 - **CRITICAL:** 1 vulnerability (Dependency)
 - **HIGH:** 3 vulnerabilities (2 Dependencies, 1 Code-level)
 - **MEDIUM:** 3 vulnerabilities (Code-level)
-- **LOW:** 4 vulnerabilities (Best practices)
+- **LOW:** 7 issues (4 Security, 3 Code Quality)
 - **INFO:** 2 observations
 
 **Action Required:** URGENT - Critical and high severity vulnerabilities must be addressed immediately.
@@ -387,6 +387,152 @@ throw new McpError(
 - Use generic errors for external clients
 
 **Timeline:** 8 WEEKS (Enhancement)
+
+---
+
+### 4.5 Code Duplication (DRY Violation) (LOW)
+
+**Severity:** LOW
+**CWE:** N/A (Code Quality)
+
+**Description:**
+The `extract*Id` methods are duplicated across all handler classes with identical logic, violating the DRY (Don't Repeat Yourself) principle.
+
+**Affected Locations:**
+- `src/handlers/artists.ts:14-16` - `extractArtistId`
+- `src/handlers/albums.ts:13-15` - `extractAlbumId`
+- `src/handlers/tracks.ts:11-13` - `extractTrackId`
+- `src/handlers/playlists.ts:8-10` - `extractPlaylistId`
+- `src/handlers/audiobooks.ts:8-10` - `extractAudiobookId`
+
+**Example:**
+```typescript
+// Duplicated 5 times across handlers
+private extractArtistId(id: string): string {
+  return id.startsWith('spotify:artist:') ? id.split(':')[2] : id;
+}
+```
+
+**Impact:**
+- Maintenance burden - bug fixes must be applied 5 times
+- Inconsistency risk if one copy is updated but others aren't
+- Increased test surface area
+
+**Remediation:**
+Create a centralized `SpotifyValidator` utility class (as shown in Section 11.1) to eliminate duplication.
+
+**Timeline:** 4 WEEKS
+
+---
+
+### 4.6 Missing `this` Binding in Array map() Calls (LOW)
+
+**Severity:** LOW
+**CWE:** N/A (Code Quality)
+
+**Description:**
+Handler methods use `this.extractMethod` directly in `.map()` calls without proper binding, which could cause runtime errors if the execution context changes.
+
+**Affected Locations:**
+- `src/handlers/albums.ts:37` - `args.ids.map(this.extractAlbumId)`
+- `src/handlers/artists.ts:38` - `args.ids.map(this.extractArtistId)`
+- `src/handlers/audiobooks.ts:39` - `ids.map(this.extractAudiobookId)`
+- `src/handlers/tracks.ts:42` - `seed_tracks.map(this.extractTrackId)`
+
+**Example:**
+```typescript
+// Current - potential context loss
+const albumIds = args.ids.map(this.extractAlbumId);
+```
+
+**Risk:**
+- TypeError: Cannot read property 'extractAlbumId' of undefined
+- Works currently but fragile to refactoring
+- No explicit binding ensures context preservation
+
+**Remediation:**
+```typescript
+// Option 1: Arrow function (recommended)
+const albumIds = args.ids.map(id => this.extractAlbumId(id));
+
+// Option 2: Explicit binding
+const albumIds = args.ids.map(this.extractAlbumId.bind(this));
+
+// Option 3: Use static validator
+const albumIds = args.ids.map(id => SpotifyValidator.extractAndValidateId(id, 'album', 'album'));
+```
+
+**Timeline:** 4 WEEKS
+
+---
+
+### 4.7 Magic Numbers and Missing Constants (LOW)
+
+**Severity:** LOW
+**CWE:** N/A (Code Quality)
+
+**Description:**
+API limits and validation thresholds are hardcoded throughout the codebase as "magic numbers" without centralized constant definitions.
+
+**Examples:**
+- Limit values: `20`, `50`, `100` appear in multiple locations
+- Error messages duplicated: "Limit must be between 1 and 50" appears 4+ times
+- Max items: `20`, `50` for different endpoints
+
+**Affected Locations:**
+- `src/handlers/albums.ts:30,45,48,68,71` - Hardcoded 20, 50
+- `src/handlers/artists.ts:31,34,66,69` - Hardcoded 50, 20
+- `src/handlers/search.ts:11,14` - Hardcoded 50
+- `src/handlers/tracks.ts:35,38` - Hardcoded 100
+- `src/index.ts` - Multiple schema definitions with magic numbers
+
+**Impact:**
+- Difficult to maintain consistency
+- Risk of typos and inconsistencies
+- Hard to update when API limits change
+- Poor code readability
+
+**Remediation:**
+```typescript
+// src/constants/spotifyLimits.ts (NEW)
+export const SPOTIFY_LIMITS = {
+  SEARCH: { MIN: 1, MAX: 50, DEFAULT: 20 },
+  ALBUMS: { MIN: 1, MAX: 50, DEFAULT: 20 },
+  TRACKS: { MIN: 1, MAX: 50, DEFAULT: 20 },
+  RECOMMENDATIONS: { MIN: 1, MAX: 100, DEFAULT: 20 },
+  PLAYLIST_ITEMS: { MIN: 1, MAX: 100, DEFAULT: 20 },
+
+  MAX_ARTISTS_BATCH: 50,
+  MAX_ALBUMS_BATCH: 20,
+  MAX_AUDIOBOOKS_BATCH: 50,
+} as const;
+
+export const ERROR_MESSAGES = {
+  LIMIT_OUT_OF_RANGE: (min: number, max: number) =>
+    `Limit must be between ${min} and ${max}`,
+  OFFSET_NEGATIVE: 'Offset must be non-negative',
+  NO_IDS_PROVIDED: (type: string) =>
+    `At least one ${type} ID must be provided`,
+  MAX_IDS_EXCEEDED: (type: string, max: number) =>
+    `Maximum of ${max} ${type} IDs allowed`,
+} as const;
+
+// Usage in handlers:
+import { SPOTIFY_LIMITS, ERROR_MESSAGES } from '../constants/spotifyLimits.js';
+
+async getAlbumTracks(args: AlbumTracksArgs) {
+  const { limit = SPOTIFY_LIMITS.ALBUMS.DEFAULT, offset = 0 } = args;
+
+  if (limit < SPOTIFY_LIMITS.ALBUMS.MIN || limit > SPOTIFY_LIMITS.ALBUMS.MAX) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      ERROR_MESSAGES.LIMIT_OUT_OF_RANGE(SPOTIFY_LIMITS.ALBUMS.MIN, SPOTIFY_LIMITS.ALBUMS.MAX)
+    );
+  }
+}
+```
+
+**Timeline:** 4 WEEKS
 
 ---
 
@@ -1034,6 +1180,7 @@ describe('SpotifyValidator Security Tests', () => {
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-10-28 | 1.1 | Added code quality best practices analysis (DRY, magic numbers, this binding) |
 | 2025-10-28 | 1.0 | Initial Security Review (English version) |
 
 ---
