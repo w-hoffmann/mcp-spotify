@@ -1,41 +1,41 @@
-# ArtistLens - Security Review
+# ArtistLens - Security Review Report
 
-**Projekt:** ArtistLens (MCP Spotify Server)
+**Project:** ArtistLens (MCP Spotify Server)
 **Version:** 0.4.12
-**Datum:** 2025-10-28
-**Review Typ:** Comprehensive Security Audit
+**Review Date:** 2025-10-28
+**Review Type:** Comprehensive Security Audit
 
 ---
 
 ## Executive Summary
 
-Dieses Dokument fasst die Ergebnisse eines umfassenden Security-Reviews von ArtistLens zusammen. ArtistLens ist ein Model Context Protocol (MCP) Server, der Zugriff auf die Spotify Web API bietet. Die Anwendung nutzt die Client Credentials Flow-Authentifizierung und bietet verschiedene Tools für den Zugriff auf Spotify-Katalogdaten.
+This document presents the findings of a comprehensive security review of ArtistLens, a Model Context Protocol (MCP) server that provides access to the Spotify Web API. The application uses Client Credentials Flow authentication and provides various tools for accessing Spotify catalog data.
 
-### Kritikalitätsübersicht
+### Severity Overview
 
-- **KRITISCH:** 1 Schwachstelle (Dependency)
-- **HOCH:** 2 Schwachstellen (Dependencies)
-- **MITTEL:** 3 Schwachstellen (Code-Level)
-- **NIEDRIG:** 4 Schwachstellen (Best Practices)
-- **INFO:** 2 Hinweise
+- **CRITICAL:** 1 vulnerability (Dependency)
+- **HIGH:** 3 vulnerabilities (2 Dependencies, 1 Code-level)
+- **MEDIUM:** 3 vulnerabilities (Code-level)
+- **LOW:** 4 vulnerabilities (Best practices)
+- **INFO:** 2 observations
 
-**Handlungsbedarf:** DRINGEND - Kritische und hohe Schwachstellen müssen sofort behoben werden.
+**Action Required:** URGENT - Critical and high severity vulnerabilities must be addressed immediately.
 
 ---
 
-## 1. Kritische Schwachstellen (CRITICAL)
+## 1. Critical Vulnerabilities (CRITICAL)
 
-### 1.1 form-data: Unsichere Zufallsfunktion (CRITICAL)
+### 1.1 form-data: Unsafe Random Function (CRITICAL)
 
 **CVE/Advisory:** GHSA-fjxv-7rqg-78g4
-**Betroffene Dependency:** form-data 4.0.0-4.0.3 (transitive dependency)
+**Affected Dependency:** form-data 4.0.0-4.0.3 (transitive dependency)
 **CVSS Score:** N/A
 **CWE:** CWE-330 (Use of Insufficiently Random Values)
 
-**Beschreibung:**
-Die form-data Library verwendet eine unsichere Zufallsfunktion für die Generierung von Boundaries in multipart/form-data Requests. Dies kann zu vorhersagbaren Boundaries führen und potenzielle Sicherheitsprobleme verursachen.
+**Description:**
+The form-data library uses an unsafe random function for generating boundaries in multipart/form-data requests. This can lead to predictable boundaries and potential security issues.
 
-**Location:** Transitive dependency von axios
+**Location:** Transitive dependency of axios
 
 **Remediation:**
 ```bash
@@ -43,25 +43,25 @@ npm update axios
 npm audit fix
 ```
 
-**Zeitrahmen:** SOFORT
+**Timeline:** IMMEDIATE
 
 ---
 
-## 2. Hohe Schwachstellen (HIGH)
+## 2. High Vulnerabilities (HIGH)
 
-### 2.1 axios: SSRF und Credential Leakage Schwachstelle (HIGH)
+### 2.1 axios: SSRF and Credential Leakage (HIGH)
 
 **CVE/Advisory:** GHSA-jr5f-v2jv-69x6
-**Betroffene Version:** axios 1.7.9 (current version)
+**Affected Version:** axios 1.7.9 (current version)
 **Required Version:** >= 1.8.2
 **CWE:** CWE-918 (Server-Side Request Forgery)
 
-**Beschreibung:**
-Die aktuelle axios Version ist anfällig für Server-Side Request Forgery (SSRF) Angriffe und potenzielle Credential Leakage durch absolute URLs.
+**Description:**
+The current axios version is vulnerable to Server-Side Request Forgery (SSRF) attacks and potential credential leakage through absolute URLs.
 
 **Impact:**
-- Angreifer könnten durch manipulierte URLs auf interne Ressourcen zugreifen
-- Potenzielle Leakage von Credentials bei Redirects
+- Attackers could access internal resources through manipulated URLs
+- Potential credential leakage during redirects
 
 **Location:** package.json:22
 
@@ -70,24 +70,24 @@ Die aktuelle axios Version ist anfällig für Server-Side Request Forgery (SSRF)
 npm install axios@latest
 ```
 
-**Zeitrahmen:** SOFORT
+**Timeline:** IMMEDIATE
 
 ---
 
-### 2.2 axios: DoS durch fehlende Data Size Checks (HIGH)
+### 2.2 axios: DoS Through Missing Data Size Checks (HIGH)
 
 **CVE/Advisory:** GHSA-4hjh-wcwx-xvwj
-**Betroffene Version:** axios 1.0.0 - 1.11.0 (current: 1.7.9)
+**Affected Version:** axios 1.0.0 - 1.11.0 (current: 1.7.9)
 **Required Version:** >= 1.12.0
 **CVSS Score:** 7.5
 **CWE:** CWE-770 (Allocation of Resources Without Limits)
 
-**Beschreibung:**
-Axios prüft nicht die Größe empfangener Daten, was zu Denial-of-Service Angriffen durch übermäßig große Responses führen kann.
+**Description:**
+Axios does not validate the size of received data, which can lead to Denial-of-Service attacks through excessively large responses.
 
 **Impact:**
-- Memory exhaustion durch große API Responses
-- Potenzielle Downtime der Anwendung
+- Memory exhaustion through large API responses
+- Potential application downtime
 
 **Location:** package.json:22
 
@@ -96,55 +96,112 @@ Axios prüft nicht die Größe empfangener Daten, was zu Denial-of-Service Angri
 npm install axios@^1.12.0
 ```
 
-**Zeitrahmen:** SOFORT
+**Timeline:** IMMEDIATE
 
 ---
 
-## 3. Mittlere Schwachstellen (MEDIUM)
+### 2.3 Unsafe Array Access Without Bounds Checking (HIGH)
 
-### 3.1 Unzureichende ID-Validierung und potenzielle Path Traversal (MEDIUM)
+**Severity:** HIGH
+**CWE:** CWE-129 (Improper Validation of Array Index), CWE-20 (Improper Input Validation)
 
-**Severity:** MEDIUM
-**CWE:** CWE-20 (Improper Input Validation), CWE-22 (Path Traversal)
-
-**Beschreibung:**
-Die Extraktion von Spotify IDs aus URIs verwendet einfaches String-Splitting ohne Validierung des resultierenden Werts. Es gibt keine Prüfung, ob die extrahierten IDs dem erwarteten Format entsprechen (alphanumerisch, 22 Zeichen).
+**Description:**
+All handler classes use `split(':')[2]` to extract Spotify IDs from URIs without validating array bounds. Malformed URIs could cause the application to access undefined array indices, leading to runtime errors or unexpected behavior.
 
 **Affected Locations:**
-- `src/handlers/artists.ts:14-16`
-- `src/handlers/albums.ts:13-15`
-- `src/handlers/tracks.ts:11-13`
-- `src/handlers/playlists.ts:8-10`
-- `src/handlers/audiobooks.ts` (ähnliches Muster angenommen)
+- `src/handlers/artists.ts:15` - `id.split(':')[2]`
+- `src/handlers/albums.ts:14` - `id.split(':')[2]`
+- `src/handlers/tracks.ts:12` - `id.split(':')[2]`
+- `src/handlers/tracks.ts:44` - `id.split(':')[2]`
+- `src/handlers/playlists.ts:9` - `id.split(':')[2]`
+- `src/handlers/audiobooks.ts:9` - `id.split(':')[2]`
 
-**Beispiel (artists.ts:14-16):**
+**Example (artists.ts:15):**
 ```typescript
 private extractArtistId(id: string): string {
   return id.startsWith('spotify:artist:') ? id.split(':')[2] : id;
 }
 ```
 
-**Risiko:**
-- Malformed URIs könnten zu unerwarteten Werten führen
-- Potenzielle Path Traversal bei direkter URL-Konstruktion
-- Keine Validierung des Formats der extrahierten ID
+**Risk:**
+- Undefined array access if URI format is incorrect (e.g., "spotify:artist:" without ID)
+- No validation that split result exists before access
+- Application crash or unexpected behavior
+
+**Proof of Concept:**
+```javascript
+// These inputs would cause issues:
+"spotify:artist:"  // split(':')[2] returns undefined
+"spotify:"         // split(':')[2] returns undefined
+"artist:123:extra" // split(':')[2] returns "extra" (unexpected)
+```
 
 **Remediation:**
 ```typescript
 private extractArtistId(id: string): string {
+  if (id.startsWith('spotify:artist:')) {
+    const parts = id.split(':');
+    if (parts.length !== 3 || !parts[2]) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'Invalid Spotify URI format. Expected: spotify:artist:ID'
+      );
+    }
+    return parts[2];
+  }
+  return id;
+}
+```
+
+**Timeline:** 1 WEEK
+
+---
+
+## 3. Medium Vulnerabilities (MEDIUM)
+
+### 3.1 Insufficient ID Validation and Potential Path Traversal (MEDIUM)
+
+**Severity:** MEDIUM
+**CWE:** CWE-20 (Improper Input Validation), CWE-22 (Path Traversal)
+
+**Description:**
+After extracting IDs from URIs, there is no validation that the extracted values match the expected Spotify ID format (22 alphanumeric characters). This could allow malformed IDs to be passed directly into URL construction.
+
+**Affected Locations:**
+All extract*Id methods in handlers (artists, albums, tracks, playlists, audiobooks)
+
+**Example:**
+```typescript
+// Current code allows these through:
+const malicious = "../../../etc/passwd";  // Path traversal attempt
+const invalid = "abc123";                  // Too short
+const special = "abc123456789012345678!!"; // Special characters
+```
+
+**Risk:**
+- Potential path traversal in API endpoints
+- Unexpected API behavior with malformed IDs
+- No format enforcement for Spotify ID structure
+
+**Remediation:**
+```typescript
+private static readonly SPOTIFY_ID_REGEX = /^[a-zA-Z0-9]{22}$/;
+
+private extractArtistId(id: string): string {
   const extracted = id.startsWith('spotify:artist:') ? id.split(':')[2] : id;
-  // Validate Spotify ID format (22 alphanumeric characters)
-  if (!/^[a-zA-Z0-9]{22}$/.test(extracted)) {
+
+  if (!this.SPOTIFY_ID_REGEX.test(extracted)) {
     throw new McpError(
       ErrorCode.InvalidParams,
-      'Invalid Spotify artist ID format'
+      'Invalid Spotify artist ID format. Expected 22 alphanumeric characters.'
     );
   }
+
   return extracted;
 }
 ```
 
-**Zeitrahmen:** 2 Wochen
+**Timeline:** 2 WEEKS
 
 ---
 
@@ -153,21 +210,30 @@ private extractArtistId(id: string): string {
 **Severity:** MEDIUM
 **CWE:** CWE-88 (Improper Neutralization of Argument Delimiters in a Command)
 
-**Beschreibung:**
-In der Methode `getArtistTopTracks` wird der market-Parameter direkt in den Query String interpoliert, anstatt die sichere `buildQueryString`-Methode zu verwenden.
+**Description:**
+The `getArtistTopTracks` method uses direct string interpolation for the market parameter instead of the safe `buildQueryString` method, creating inconsistency and potential query string injection.
 
 **Location:** `src/handlers/artists.ts:52-54`
 
-**Aktueller Code:**
+**Current Code:**
 ```typescript
 return this.api.makeRequest(
   `/artists/${artistId}/top-tracks?market=${args.market}`
 );
 ```
 
-**Risiko:**
-- Potenzielle Query String Injection
-- Inkonsistenz mit anderen Methoden, die buildQueryString verwenden
+**Risk:**
+- Potential query string injection via market parameter
+- Inconsistency with other methods that use buildQueryString
+- Additional parameters could be injected (e.g., "US&limit=100&offset=0")
+
+**Proof of Concept:**
+```javascript
+// Malicious input:
+market: "US&unauthorized_param=malicious_value"
+// Results in:
+// /artists/123/top-tracks?market=US&unauthorized_param=malicious_value
+```
 
 **Remediation:**
 ```typescript
@@ -188,28 +254,34 @@ async getArtistTopTracks(args: ArtistTopTracksArgs) {
 }
 ```
 
-**Zeitrahmen:** 1 Woche
+**Timeline:** 1 WEEK
 
 ---
 
-### 3.3 Fehlende Validierung von Market Codes (MEDIUM)
+### 3.3 Missing Market Code Validation (MEDIUM)
 
 **Severity:** MEDIUM
 **CWE:** CWE-20 (Improper Input Validation)
 
-**Beschreibung:**
-Market-Parameter werden nicht auf das korrekte ISO 3166-1 alpha-2 Format validiert. Dies könnte zu unerwarteten API-Responses oder Fehlern führen.
+**Description:**
+Market parameters are not validated against the ISO 3166-1 alpha-2 format. This could lead to unexpected API responses or errors.
 
 **Affected Locations:**
 - `src/handlers/artists.ts:42-54` (getArtistTopTracks)
-- `src/handlers/playlists.ts` (verschiedene Methoden)
-- `src/handlers/audiobooks.ts` (ähnliches Muster angenommen)
+- `src/handlers/playlists.ts` (various methods)
+- `src/handlers/audiobooks.ts` (various methods)
+
+**Risk:**
+- Malformed market codes accepted
+- Unexpected Spotify API behavior
+- Poor error handling for invalid country codes
 
 **Remediation:**
 ```typescript
+private static readonly MARKET_CODE_REGEX = /^[A-Z]{2}$/;
+
 private validateMarketCode(market: string): void {
-  // ISO 3166-1 alpha-2 country codes are exactly 2 uppercase letters
-  if (!/^[A-Z]{2}$/.test(market)) {
+  if (!this.MARKET_CODE_REGEX.test(market)) {
     throw new McpError(
       ErrorCode.InvalidParams,
       'Market must be a valid ISO 3166-1 alpha-2 country code (e.g., "US", "DE")'
@@ -218,21 +290,21 @@ private validateMarketCode(market: string): void {
 }
 ```
 
-**Zeitrahmen:** 2 Wochen
+**Timeline:** 2 WEEKS
 
 ---
 
-## 4. Niedrige Schwachstellen (LOW)
+## 4. Low Vulnerabilities (LOW)
 
-### 4.1 @babel/helpers: Ineffiziente RegExp Komplexität (LOW)
+### 4.1 @babel/helpers: Inefficient RegExp Complexity (LOW)
 
 **CVE/Advisory:** GHSA-968p-4wvh-cqc8
 **Severity:** MODERATE (classified as LOW for this project)
 **CVSS Score:** 6.2
 **CWE:** CWE-1333 (Inefficient Regular Expression Complexity)
 
-**Beschreibung:**
-@babel/helpers hat ineffiziente RegExp-Komplexität im generierten Code. Da dies nur eine Dev Dependency ist, ist das Risiko für Production gering.
+**Description:**
+@babel/helpers has inefficient RegExp complexity in generated code. Since this is only a dev dependency, the production risk is low.
 
 **Location:** DevDependency
 
@@ -241,19 +313,19 @@ private validateMarketCode(market: string): void {
 npm update @babel/helpers
 ```
 
-**Zeitrahmen:** 4 Wochen
+**Timeline:** 4 WEEKS
 
 ---
 
-### 4.2 brace-expansion: ReDoS Schwachstelle (LOW)
+### 4.2 brace-expansion: ReDoS Vulnerability (LOW)
 
 **CVE/Advisory:** GHSA-v6h2-p8h4-qcjw
 **Severity:** LOW
 **CVSS Score:** 3.1
 **CWE:** CWE-400 (Uncontrolled Resource Consumption)
 
-**Beschreibung:**
-Die brace-expansion Library (transitive dependency) ist anfällig für Regular Expression Denial of Service (ReDoS) Angriffe.
+**Description:**
+The brace-expansion library (transitive dependency) is vulnerable to Regular Expression Denial of Service (ReDoS) attacks.
 
 **Location:** Transitive dependency
 
@@ -262,40 +334,41 @@ Die brace-expansion Library (transitive dependency) ist anfällig für Regular E
 npm audit fix
 ```
 
-**Zeitrahmen:** 4 Wochen
+**Timeline:** 4 WEEKS
 
 ---
 
-### 4.3 Fehlende Rate Limiting (LOW)
+### 4.3 Missing Rate Limiting (LOW)
 
 **Severity:** LOW
 **CWE:** CWE-770 (Allocation of Resources Without Limits)
 
-**Beschreibung:**
-Die Anwendung implementiert kein Rate Limiting für API-Anfragen. Dies könnte zu API-Quota-Erschöpfung führen.
+**Description:**
+The application does not implement rate limiting for API requests. This could lead to API quota exhaustion.
 
 **Impact:**
-- Potenzielle Erschöpfung des Spotify API Quotas
-- Keine Protection gegen exzessive Nutzung
+- Potential exhaustion of Spotify API quota
+- No protection against excessive usage
+- Possible service degradation
 
 **Recommendation:**
-Implementieren Sie ein Token-Bucket oder Leaky-Bucket Rate Limiting Pattern.
+Implement token-bucket or leaky-bucket rate limiting pattern.
 
-**Zeitrahmen:** 8 Wochen (Enhancement)
+**Timeline:** 8 WEEKS (Enhancement)
 
 ---
 
-### 4.4 Potenzielle Information Disclosure durch Fehler-Nachrichten (LOW)
+### 4.4 Potential Information Disclosure Through Error Messages (LOW)
 
 **Severity:** LOW
 **CWE:** CWE-209 (Generation of Error Message Containing Sensitive Information)
 
-**Beschreibung:**
-Error Messages könnten interne Details exponieren.
+**Description:**
+Error messages may expose internal implementation details.
 
 **Location:** `src/utils/api.ts:31-40`
 
-**Aktueller Code:**
+**Current Code:**
 ```typescript
 throw new McpError(
   ErrorCode.InternalError,
@@ -303,85 +376,134 @@ throw new McpError(
 );
 ```
 
-**Risiko:**
-- Potenzielle Offenlegung von internen Implementierungsdetails
-- Stack traces in Produktionsumgebung
+**Risk:**
+- Potential disclosure of internal implementation details
+- Stack traces in production environment
+- Information leakage to potential attackers
 
 **Remediation:**
-- Implementieren Sie strukturiertes Logging
-- Sanitize Error Messages in Production
-- Verwenden Sie generische Fehler für externe Clients
+- Implement structured logging
+- Sanitize error messages in production
+- Use generic errors for external clients
 
-**Zeitrahmen:** 8 Wochen (Enhancement)
+**Timeline:** 8 WEEKS (Enhancement)
 
 ---
 
-## 5. Informative Hinweise (INFO)
+## 5. Unsafe Code Patterns Analysis
 
-### 5.1 Token Storage im Memory (INFO)
+### 5.1 No eval() or new Function() ✅
 
-**Beschreibung:**
-Access Tokens werden im Memory gespeichert (src/utils/auth.ts:13). Für die Client Credentials Flow ist dies angemessen und sicher.
+**Status:** PASS
+
+No dynamic code execution patterns found. The codebase does not use:
+- `eval()`
+- `new Function()`
+- `setTimeout()`/`setInterval()` with string arguments
+
+---
+
+### 5.2 No Loose Equality Comparisons ✅
+
+**Status:** PASS
+
+All equality comparisons use strict equality (`===` and `!==`). No loose equality operators (`==` or `!=`) found.
+
+---
+
+### 5.3 Proper URI Encoding ✅
+
+**Status:** PASS
+
+Search queries are properly encoded using `encodeURIComponent()` (src/handlers/search.ts:19).
+
+---
+
+### 5.4 String Comparisons for Control Flow ⚠️
+
+**Status:** ACCEPTABLE (with caveats)
+
+The code uses `startsWith()` for URI prefix detection. This is acceptable since:
+- Used for non-sensitive data (public URI prefixes)
+- Not vulnerable to timing attacks in this context
+- No secret comparison issues
+
+**Note:** The issue is not the `startsWith()` itself, but the unsafe array access that follows (covered in 2.3).
+
+---
+
+## 6. Informative Observations (INFO)
+
+### 6.1 Token Storage in Memory (INFO)
+
+**Description:**
+Access tokens are stored in memory (src/utils/auth.ts:13). For Client Credentials Flow, this is appropriate and secure.
 
 **Assessment:**
-Dies ist KEIN Sicherheitsproblem. Die Implementierung ist für den Use Case korrekt:
-- Client Credentials haben keine User-spezifischen Daten
-- Token Rotation ist implementiert
-- Keine Persistierung notwendig
+This is NOT a security issue. The implementation is correct for the use case:
+- Client Credentials have no user-specific data
+- Token rotation is implemented
+- No persistence necessary
 
-**Keine Aktion erforderlich.**
+**No action required.**
 
 ---
 
-### 5.2 Strukturiertes Logging fehlt (INFO)
+### 6.2 Structured Logging Missing (INFO)
 
-**Beschreibung:**
-Die Anwendung verwendet console.error für Logging (src/index.ts:96, 922).
+**Description:**
+The application uses console.error for logging (src/index.ts:96, 922).
 
 **Recommendation:**
-- Implementieren Sie strukturiertes Logging (z.B. winston, pino)
-- Fügen Sie Log Levels hinzu (debug, info, warn, error)
-- Implementieren Sie Correlation IDs für Request Tracking
-- Erwägen Sie Security Event Logging
+- Implement structured logging (e.g., winston, pino)
+- Add log levels (debug, info, warn, error)
+- Implement correlation IDs for request tracking
+- Consider security event logging
 
-**Zeitrahmen:** Enhancement für zukünftige Version
+**Timeline:** Enhancement for future version
 
 ---
 
-## 6. Positive Security Practices
+## 7. Positive Security Practices
 
-Die folgenden positiven Security Practices wurden identifiziert:
+The following positive security practices were identified:
 
-1. **Environment Variable für Secrets:**
-   Credentials werden über Umgebungsvariablen geladen (src/utils/auth.ts:5-10)
+1. **Environment Variables for Secrets:**
+   Credentials are loaded via environment variables (src/utils/auth.ts:5-10)
 
 2. **Input Validation:**
-   Limits und Offsets werden validiert (z.B. src/handlers/albums.ts:45-56)
+   Limits and offsets are validated (e.g., src/handlers/albums.ts:45-56)
 
 3. **MCP Error Handling:**
-   Strukturierte Fehlerbehandlung mit MCP SDK Error Codes
+   Structured error handling with MCP SDK error codes
 
 4. **HTTPS by Default:**
-   Alle API-Calls nutzen HTTPS (src/utils/api.ts:6, src/utils/auth.ts:23)
+   All API calls use HTTPS (src/utils/api.ts:6, src/utils/auth.ts:23)
 
 5. **Token Expiration:**
-   Access Token Ablauf wird geprüft (src/utils/auth.ts:17)
+   Access token expiration is checked (src/utils/auth.ts:17)
 
 6. **Client Credentials Flow:**
-   Angemessene Authentifizierungsmethode für den Use Case
+   Appropriate authentication method for the use case
 
 7. **Test Coverage:**
-   Umfassende Test-Suite vorhanden
+   Comprehensive test suite present
+
+8. **Strict Equality:**
+   Consistent use of `===` and `!==` throughout codebase
+
+9. **No Dynamic Code Execution:**
+   No eval(), Function(), or similar dangerous patterns
 
 ---
 
-## 7. Remediation Roadmap
+## 8. Remediation Roadmap
 
-### Phase 1: SOFORT (0-3 Tage)
+### Phase 1: IMMEDIATE (0-3 Days)
 
-**Priorität: KRITISCH**
+**Priority: CRITICAL**
 
-1. Update axios auf >= 1.12.0
+1. Update axios to >= 1.12.0
    ```bash
    npm install axios@^1.12.0
    ```
@@ -391,55 +513,56 @@ Die folgenden positiven Security Practices wurden identifiziert:
    npm audit fix --force
    ```
 
-3. Testen der Anwendung nach Updates
+3. Test application after updates
    ```bash
    npm test
    npm run build
    ```
 
-**Deliverable:** Keine kritischen/hohen Vulnerabilities mehr in npm audit
+**Deliverable:** No critical/high dependency vulnerabilities in npm audit
 
 ---
 
-### Phase 2: Kurzfristig (1-2 Wochen)
+### Phase 2: Short-term (1-2 Weeks)
 
-**Priorität: HOCH**
+**Priority: HIGH**
 
-1. Fix Query String Injection in getArtistTopTracks (3.2)
-2. Implementieren Sie ID-Validierung in allen extract*Id Methoden (3.1)
-3. Fügen Sie Market Code Validierung hinzu (3.3)
+1. Fix unsafe array access in all extract*Id methods (2.3)
+2. Fix query string injection in getArtistTopTracks (3.2)
+3. Implement ID validation in all extract*Id methods (3.1)
+4. Add market code validation (3.3)
 
-**Deliverable:** Alle MEDIUM Severity Issues behoben
+**Deliverable:** All MEDIUM severity issues resolved
 
 ---
 
-### Phase 3: Mittelfristig (4-8 Wochen)
+### Phase 3: Mid-term (4-8 Weeks)
 
-**Priorität: MITTEL**
+**Priority: MEDIUM**
 
 1. Update DevDependencies (@babel/helpers)
 2. Fix brace-expansion ReDoS
-3. Verbessern Sie Error Handling und Sanitization
-4. Code Review und Security Testing
+3. Improve error handling and sanitization
+4. Code review and security testing
 
-**Deliverable:** Alle LOW Severity Issues behoben
-
----
-
-### Phase 4: Langfristig (8-12 Wochen)
-
-**Priorität: NIEDRIG (Enhancements)**
-
-1. Implementieren Sie Rate Limiting
-2. Fügen Sie strukturiertes Logging hinzu
-3. Implementieren Sie Security Monitoring
-4. Führen Sie Penetration Testing durch
-
-**Deliverable:** Enhanced Security Posture
+**Deliverable:** All LOW severity issues resolved
 
 ---
 
-## 8. Dependency Security Status
+### Phase 4: Long-term (8-12 Weeks)
+
+**Priority: LOW (Enhancements)**
+
+1. Implement rate limiting
+2. Add structured logging
+3. Implement security monitoring
+4. Perform penetration testing
+
+**Deliverable:** Enhanced security posture
+
+---
+
+## 9. Dependency Security Status
 
 ### Production Dependencies
 
@@ -468,9 +591,9 @@ Die folgenden positiven Security Practices wurden identifiziert:
 
 ---
 
-## 9. Security Testing Recommendations
+## 10. Security Testing Recommendations
 
-### 9.1 Automated Testing
+### 10.1 Automated Testing
 
 1. **Dependency Scanning:**
    ```bash
@@ -479,41 +602,45 @@ Die folgenden positiven Security Practices wurden identifiziert:
    ```
 
 2. **SAST (Static Application Security Testing):**
-   - Installieren Sie ESLint mit Security Plugins
+   - Install ESLint with security plugins
    ```bash
-   npm install --save-dev eslint-plugin-security
+   npm install --save-dev eslint-plugin-security eslint-plugin-no-unsanitized
    ```
 
 3. **Secret Scanning:**
-   - Konfigurieren Sie git-secrets oder ähnliche Tools
-   - Überprüfen Sie Repository History auf committed secrets
+   - Configure git-secrets or similar tools
+   - Check repository history for committed secrets
 
-### 9.2 Manual Testing
+### 10.2 Manual Testing
 
 1. **Input Validation Testing:**
-   - Testen Sie mit malformed Spotify URIs
-   - Testen Sie mit Path Traversal Payloads
-   - Testen Sie mit XSS Payloads in String-Parametern
+   - Test with malformed Spotify URIs
+   - Test with path traversal payloads
+   - Test with XSS payloads in string parameters
+   - Test boundary conditions for array indices
 
 2. **API Security Testing:**
-   - Testen Sie Rate Limiting
-   - Testen Sie große Response Sizes
-   - Testen Sie Error Handling
+   - Test rate limiting behavior
+   - Test large response sizes
+   - Test error handling scenarios
 
-### 9.3 Integration Testing
+### 10.3 Integration Testing
 
 1. **MCP Protocol Security:**
-   - Validieren Sie MCP Message Handling
-   - Testen Sie Error Scenarios
+   - Validate MCP message handling
+   - Test error scenarios
+   - Verify proper error propagation
 
 ---
 
-## 10. Code-Beispiele für Security Fixes
+## 11. Code Examples for Security Fixes
 
-### 10.1 Robuste ID-Extraktion und Validierung
+### 11.1 Robust ID Extraction and Validation
 
 ```typescript
-// src/utils/validation.ts (NEU)
+// src/utils/validation.ts (NEW)
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+
 export class SpotifyValidator {
   private static readonly SPOTIFY_ID_REGEX = /^[a-zA-Z0-9]{22}$/;
   private static readonly MARKET_CODE_REGEX = /^[A-Z]{2}$/;
@@ -529,12 +656,32 @@ export class SpotifyValidator {
   }
 
   static extractAndValidateId(input: string, prefix: string, type: string): string {
-    const fullPrefix = `spotify:${prefix}:`;
-    const extracted = input.startsWith(fullPrefix)
-      ? input.split(':')[2]
-      : input;
+    if (input.startsWith(`spotify:${prefix}:`)) {
+      const parts = input.split(':');
 
-    return this.validateSpotifyId(extracted, type);
+      // Validate URI structure
+      if (parts.length !== 3) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid Spotify URI format. Expected: spotify:${prefix}:ID`
+        );
+      }
+
+      const extracted = parts[2];
+
+      // Validate extracted ID exists
+      if (!extracted) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Missing ID in Spotify URI: spotify:${prefix}:`
+        );
+      }
+
+      return this.validateSpotifyId(extracted, type);
+    }
+
+    // Direct ID provided, validate it
+    return this.validateSpotifyId(input, type);
   }
 
   static validateMarketCode(market: string): void {
@@ -548,17 +695,50 @@ export class SpotifyValidator {
 }
 ```
 
-### 10.2 Sichere Handler-Implementierung
+### 11.2 Secure Handler Implementation
 
 ```typescript
 // src/handlers/artists.ts (UPDATED)
+import { SpotifyApi } from '../utils/api.js';
 import { SpotifyValidator } from '../utils/validation.js';
+import {
+  ArtistArgs,
+  ArtistTopTracksArgs,
+  ArtistRelatedArtistsArgs,
+  ArtistAlbumsArgs,
+  MultipleArtistsArgs,
+} from '../types/artists.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 export class ArtistsHandler {
   constructor(private api: SpotifyApi) {}
 
   private extractArtistId(id: string): string {
     return SpotifyValidator.extractAndValidateId(id, 'artist', 'artist');
+  }
+
+  async getArtist(args: ArtistArgs) {
+    const artistId = this.extractArtistId(args.id);
+    return this.api.makeRequest(`/artists/${artistId}`);
+  }
+
+  async getMultipleArtists(args: MultipleArtistsArgs) {
+    if (args.ids.length === 0) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'At least one artist ID must be provided'
+      );
+    }
+
+    if (args.ids.length > 50) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'Maximum of 50 artist IDs allowed'
+      );
+    }
+
+    const artistIds = args.ids.map(id => this.extractArtistId(id));
+    return this.api.makeRequest(`/artists?ids=${artistIds.join(',')}`);
   }
 
   async getArtistTopTracks(args: ArtistTopTracksArgs) {
@@ -580,14 +760,66 @@ export class ArtistsHandler {
       `/artists/${artistId}/top-tracks${this.api.buildQueryString(params)}`
     );
   }
+
+  async getArtistRelatedArtists(args: ArtistRelatedArtistsArgs) {
+    const artistId = this.extractArtistId(args.id);
+    return this.api.makeRequest(`/artists/${artistId}/related-artists`);
+  }
+
+  async getArtistAlbums(args: ArtistAlbumsArgs) {
+    const artistId = this.extractArtistId(args.id);
+    const { limit = 20, offset = 0, include_groups } = args;
+
+    if (limit < 1 || limit > 50) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'Limit must be between 1 and 50'
+      );
+    }
+
+    if (offset < 0) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'Offset must be non-negative'
+      );
+    }
+
+    const params = {
+      limit,
+      offset,
+      include_groups: include_groups?.join(',')
+    };
+
+    return this.api.makeRequest(
+      `/artists/${artistId}/albums${this.api.buildQueryString(params)}`
+    );
+  }
 }
 ```
 
-### 10.3 Enhanced Error Handling
+### 11.3 Enhanced Error Handling with Response Size Limits
 
 ```typescript
 // src/utils/api.ts (UPDATED)
+import axios, { AxiosError } from 'axios';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { SpotifyErrorResponse } from '../types/common.js';
+import { AuthManager } from './auth.js';
+
+export const BASE_URL = 'https://api.spotify.com/v1';
+
+// Response size limits
+const MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB
+const MAX_BODY_LENGTH = 10 * 1024 * 1024;    // 10MB
+const REQUEST_TIMEOUT = 30000;                // 30 seconds
+
 export class SpotifyApi {
+  private authManager: AuthManager;
+
+  constructor(authManager: AuthManager) {
+    this.authManager = authManager;
+  }
+
   async makeRequest<T>(
     path: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
@@ -599,32 +831,40 @@ export class SpotifyApi {
         method,
         url: `${BASE_URL}${path}`,
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         data,
-        // Add security headers
-        maxContentLength: 10 * 1024 * 1024, // 10MB limit
-        maxBodyLength: 10 * 1024 * 1024,
-        timeout: 30000, // 30 second timeout
+        // Security: Limit response sizes
+        maxContentLength: MAX_CONTENT_LENGTH,
+        maxBodyLength: MAX_BODY_LENGTH,
+        // Security: Add timeout
+        timeout: REQUEST_TIMEOUT,
+        // Security: Don't follow redirects automatically
+        maxRedirects: 0,
+        validateStatus: (status) => status >= 200 && status < 300,
       });
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const spotifyError = error.response?.data as SpotifyErrorResponse;
         const statusCode = error.response?.status;
+        const spotifyError = error.response?.data as SpotifyErrorResponse;
 
-        // Log detailed error internally
-        console.error('[Spotify API Error]', {
-          status: statusCode,
-          path,
-          method,
-          error: spotifyError
-        });
+        // Log detailed error internally (in production, use proper logger)
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[Spotify API Error]', {
+            status: statusCode,
+            path,
+            method,
+            error: spotifyError,
+            message: error.message,
+          });
+        }
 
         // Return sanitized error to client
         throw new McpError(
           ErrorCode.InternalError,
-          `Spotify API error: ${this.getSanitizedErrorMessage(spotifyError, statusCode)}`
+          this.getSanitizedErrorMessage(spotifyError, statusCode, error)
         );
       }
       throw error;
@@ -633,22 +873,48 @@ export class SpotifyApi {
 
   private getSanitizedErrorMessage(
     spotifyError: SpotifyErrorResponse | undefined,
-    statusCode: number | undefined
+    statusCode: number | undefined,
+    error: AxiosError
   ): string {
-    // Don't expose internal error details in production
+    // In production, don't expose internal error details
     if (process.env.NODE_ENV === 'production') {
-      return `Request failed with status ${statusCode || 'unknown'}`;
+      // Generic error messages based on status code
+      switch (statusCode) {
+        case 401:
+          return 'Authentication failed';
+        case 403:
+          return 'Access forbidden';
+        case 404:
+          return 'Resource not found';
+        case 429:
+          return 'Rate limit exceeded';
+        default:
+          return `Request failed with status ${statusCode || 'unknown'}`;
+      }
     }
-    return spotifyError?.error?.message ?? 'Unknown error';
+
+    // In development, show detailed errors
+    return `Spotify API error: ${spotifyError?.error?.message ?? error.message}`;
+  }
+
+  buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
+    const urlParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        urlParams.set(key, value.toString());
+      }
+    });
+
+    const queryString = urlParams.toString();
+    return queryString ? `?${queryString}` : '';
   }
 }
 ```
 
 ---
 
-## 11. Compliance und Standards
-
-### 11.1 OWASP Top 10 2021 Compliance
+## 12. OWASP Top 10 2021 Compliance
 
 | OWASP Category | Status | Notes |
 |----------------|--------|-------|
@@ -665,33 +931,113 @@ export class SpotifyApi {
 
 ---
 
-## 12. Kontakt und Follow-up
+## 13. Contact and Follow-up
 
-**Security Review durchgeführt von:** Claude (AI Assistant)
-**Nächster Review geplant:** Nach Abschluss Phase 2
-**Security Contact:** [Projektverantwortlicher]
+**Security Review Performed By:** Claude (AI Assistant)
+**Next Review Scheduled:** After Phase 2 completion
+**Security Contact:** [Project Owner]
 
-### Tracking
+### Issue Tracking
 
-Empfehlung: Erstellen Sie GitHub Issues für jede identifizierte Schwachstelle:
+Recommendation: Create GitHub issues for each identified vulnerability:
 
 ```
 [SECURITY] [CRITICAL] Update axios to fix SSRF vulnerability
-[SECURITY] [HIGH] Fix Query String Injection in getArtistTopTracks
+[SECURITY] [HIGH] Fix unsafe array access in ID extraction
+[SECURITY] [HIGH] Fix query string injection in getArtistTopTracks
 [SECURITY] [MEDIUM] Add ID validation in extract methods
+[SECURITY] [MEDIUM] Add market code validation
 ...
+```
+
+---
+
+## 14. Test Cases for Validation
+
+### 14.1 ID Extraction Security Tests
+
+```typescript
+describe('SpotifyValidator Security Tests', () => {
+  describe('extractAndValidateId', () => {
+    it('should reject malformed URIs with missing ID', () => {
+      expect(() => {
+        SpotifyValidator.extractAndValidateId('spotify:artist:', 'artist', 'artist');
+      }).toThrow('Missing ID in Spotify URI');
+    });
+
+    it('should reject URIs with wrong number of parts', () => {
+      expect(() => {
+        SpotifyValidator.extractAndValidateId('spotify:artist:id:extra', 'artist', 'artist');
+      }).toThrow('Invalid Spotify URI format');
+    });
+
+    it('should reject IDs with wrong length', () => {
+      expect(() => {
+        SpotifyValidator.extractAndValidateId('short', 'artist', 'artist');
+      }).toThrow('Invalid Spotify artist ID format');
+    });
+
+    it('should reject IDs with special characters', () => {
+      expect(() => {
+        SpotifyValidator.extractAndValidateId('1234567890123456789012!', 'artist', 'artist');
+      }).toThrow('Invalid Spotify artist ID format');
+    });
+
+    it('should reject path traversal attempts', () => {
+      expect(() => {
+        SpotifyValidator.extractAndValidateId('../../../etc/passwd', 'artist', 'artist');
+      }).toThrow('Invalid Spotify artist ID format');
+    });
+
+    it('should accept valid 22-character alphanumeric IDs', () => {
+      const validId = '1234567890abcdefGHIJKL';
+      const result = SpotifyValidator.extractAndValidateId(validId, 'artist', 'artist');
+      expect(result).toBe(validId);
+    });
+
+    it('should accept and extract valid URIs', () => {
+      const validUri = 'spotify:artist:1234567890abcdefGHIJKL';
+      const result = SpotifyValidator.extractAndValidateId(validUri, 'artist', 'artist');
+      expect(result).toBe('1234567890abcdefGHIJKL');
+    });
+  });
+
+  describe('validateMarketCode', () => {
+    it('should accept valid 2-letter uppercase country codes', () => {
+      expect(() => SpotifyValidator.validateMarketCode('US')).not.toThrow();
+      expect(() => SpotifyValidator.validateMarketCode('DE')).not.toThrow();
+    });
+
+    it('should reject lowercase country codes', () => {
+      expect(() => SpotifyValidator.validateMarketCode('us')).toThrow();
+    });
+
+    it('should reject codes with wrong length', () => {
+      expect(() => SpotifyValidator.validateMarketCode('USA')).toThrow();
+      expect(() => SpotifyValidator.validateMarketCode('U')).toThrow();
+    });
+
+    it('should reject codes with numbers', () => {
+      expect(() => SpotifyValidator.validateMarketCode('U1')).toThrow();
+    });
+
+    it('should reject codes with special characters', () => {
+      expect(() => SpotifyValidator.validateMarketCode('U$')).toThrow();
+    });
+  });
+});
 ```
 
 ---
 
 ## Changelog
 
-| Datum | Version | Änderungen |
-|-------|---------|------------|
-| 2025-10-28 | 1.0 | Initial Security Review |
+| Date | Version | Changes |
+|------|---------|---------|
+| 2025-10-28 | 1.0 | Initial Security Review (English version) |
 
 ---
 
-**Status:** AKTIV - SOFORTIGE MASSNAHMEN ERFORDERLICH
+**Status:** ACTIVE - IMMEDIATE ACTION REQUIRED
 
-Dieses Dokument sollte aktualisiert werden, sobald Schwachstellen behoben wurden.
+This document should be updated as vulnerabilities are remediated.
